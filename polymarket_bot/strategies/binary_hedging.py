@@ -34,9 +34,10 @@ class BinaryHedgingStrategy(BaseStrategy):
     def __init__(
         self,
         polymarket_client: PolymarketClient,
-        config: Dict
+        config: Dict,
+        trade_simulator = None
     ):
-        super().__init__("BinaryHedging", polymarket_client, config)
+        super().__init__("BinaryHedging", polymarket_client, config, trade_simulator)
 
         self.min_discount = config.get('min_discount', 0.034)  # 3.4% discount minimum
         self.max_positions = config.get('max_positions', 10)

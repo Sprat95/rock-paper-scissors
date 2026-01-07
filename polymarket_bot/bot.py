@@ -15,6 +15,7 @@ from .strategies.market_making import MarketMakingStrategy
 from .utils.config import get_config
 from .utils.logger import get_logger
 from .utils.risk_manager import RiskManager
+from .utils.trade_simulator import TradeSimulator
 
 logger = get_logger()
 
@@ -34,6 +35,7 @@ class PolymarketBot:
         self.polymarket_client: Optional[PolymarketClient] = None
         self.price_feed: Optional[BinancePriceFeed] = None
         self.risk_manager: Optional[RiskManager] = None
+        self.trade_simulator: Optional[TradeSimulator] = None
 
         self.starting_balance = 0.0
         self.current_balance = 0.0
@@ -79,6 +81,13 @@ class PolymarketBot:
 
         logger.info("Risk manager initialized")
 
+        # Initialize trade simulator if in testing mode
+        if self.config.testing_mode:
+            self.trade_simulator = TradeSimulator(
+                output_dir=self.config.testing.output_dir
+            )
+            logger.info("🧪 Testing mode enabled - Trade simulator initialized")
+
         # Initialize price feeds for latency arbitrage
         if self.config.latency_arbitrage.enabled:
             if not self.config.binance_api_key or not self.config.binance_api_secret:
@@ -97,7 +106,9 @@ class PolymarketBot:
         logger.info(f"Initialized {len(self.strategies)} strategies")
 
         # Logging mode
-        if self.config.enable_live_trading:
+        if self.config.testing_mode:
+            logger.info("🧪 TESTING MODE - Trades will be logged and verified (NO execution)")
+        elif self.config.enable_live_trading:
             logger.warning("⚠️  LIVE TRADING MODE - Real funds will be used")
         else:
             logger.info("📊 PAPER TRADING MODE - No real trades will be executed")
@@ -112,7 +123,8 @@ class PolymarketBot:
                     strategy = LatencyArbitrageStrategy(
                         polymarket_client=self.polymarket_client,
                         config=vars(strategy_config),
-                        price_feed=self.price_feed
+                        price_feed=self.price_feed,
+                        trade_simulator=self.trade_simulator
                     )
                     self.strategies.append(strategy)
                     logger.info(f"✓ {strategy_name} strategy initialized (Priority: {strategy_config.priority})")
@@ -120,7 +132,8 @@ class PolymarketBot:
                 elif strategy_name == 'binary_hedging':
                     strategy = BinaryHedgingStrategy(
                         polymarket_client=self.polymarket_client,
-                        config=vars(strategy_config)
+                        config=vars(strategy_config),
+                        trade_simulator=self.trade_simulator
                     )
                     self.strategies.append(strategy)
                     logger.info(f"✓ {strategy_name} strategy initialized (Priority: {strategy_config.priority})")
@@ -128,7 +141,8 @@ class PolymarketBot:
                 elif strategy_name == 'combinatorial_arbitrage':
                     strategy = CombinatorialArbitrageStrategy(
                         polymarket_client=self.polymarket_client,
-                        config=vars(strategy_config)
+                        config=vars(strategy_config),
+                        trade_simulator=self.trade_simulator
                     )
                     self.strategies.append(strategy)
                     logger.info(f"✓ {strategy_name} strategy initialized (Priority: {strategy_config.priority})")
@@ -136,7 +150,8 @@ class PolymarketBot:
                 elif strategy_name == 'market_making':
                     strategy = MarketMakingStrategy(
                         polymarket_client=self.polymarket_client,
-                        config=vars(strategy_config)
+                        config=vars(strategy_config),
+                        trade_simulator=self.trade_simulator
                     )
                     self.strategies.append(strategy)
                     logger.info(f"✓ {strategy_name} strategy initialized (Priority: {strategy_config.priority})")
@@ -169,6 +184,10 @@ class PolymarketBot:
         # Start monitoring task
         tasks.append(asyncio.create_task(self._monitor_loop()))
 
+        # Start testing mode monitoring task if applicable
+        if self.testing_mode and self.trade_simulator:
+            tasks.append(asyncio.create_task(self._monitor_simulated_trades()))
+
         # Wait for all tasks
         try:
             await asyncio.gather(*tasks)
@@ -190,6 +209,11 @@ class PolymarketBot:
         # Stop price feeds
         if self.price_feed:
             await self.price_feed.stop()
+
+        # Generate testing mode report if applicable
+        if self.testing_mode and self.trade_simulator:
+            self.trade_simulator.save_final_report()
+            self.trade_simulator.export_to_csv()
 
         # Print final summary
         await self._print_final_summary()
@@ -220,6 +244,47 @@ class PolymarketBot:
                 logger.error(f"Error in monitor loop: {e}")
                 await asyncio.sleep(60)
 
+    async def _monitor_simulated_trades(self):
+        """Monitor and resolve simulated trades in testing mode"""
+        logger.info("Starting simulated trades monitor...")
+
+        while self.running:
+            try:
+                await asyncio.sleep(self.config.testing.monitor_interval)
+
+                # Check pending and monitoring trades for resolution
+                pending = self.trade_simulator.get_pending_trades()
+                monitoring = self.trade_simulator.get_monitoring_trades()
+
+                for trade in pending + monitoring:
+                    try:
+                        # Get current price to check if market resolved
+                        current_price = self.polymarket_client.get_midpoint(trade.token_id)
+
+                        if current_price is None:
+                            continue
+
+                        # Check if market resolved (price at 0 or 1)
+                        if current_price >= 0.99:
+                            # Resolved to YES/UP
+                            self.trade_simulator.resolve_trade(trade, "YES", 1.0)
+                        elif current_price <= 0.01:
+                            # Resolved to NO/DOWN
+                            self.trade_simulator.resolve_trade(trade, "NO", 0.0)
+
+                    except Exception as e:
+                        logger.error(f"Error checking trade {trade.trade_id}: {e}")
+
+                # Generate periodic reports
+                if self.config.testing.generate_reports:
+                    stats = self.trade_simulator.get_statistics()
+                    if stats['resolved_trades'] > 0 and stats['resolved_trades'] % 10 == 0:
+                        logger.info(self.trade_simulator.generate_report())
+
+            except Exception as e:
+                logger.error(f"Error in simulated trades monitor: {e}")
+                await asyncio.sleep(self.config.testing.monitor_interval)
+
     async def _print_status(self):
         """Print current bot status"""
         logger.info("\n" + "=" * 60)
@@ -249,6 +314,16 @@ class PolymarketBot:
                 f"PnL: ${perf['net_pnl']:.2f}, "
                 f"Open: {perf['open_positions']}"
             )
+
+        # Testing mode statistics
+        if self.testing_mode and self.trade_simulator:
+            stats = self.trade_simulator.get_statistics()
+            logger.info("\n🧪 Testing Mode Statistics:")
+            logger.info(f"  Total Simulated Trades: {stats['total_trades']}")
+            logger.info(f"  Resolved: {stats['resolved_trades']}, Pending: {stats['pending_trades']}")
+            logger.info(f"  Win Rate: {stats['win_rate']:.2f}%")
+            logger.info(f"  Hypothetical PnL: ${stats['total_pnl']:.2f}")
+            logger.info(f"  Avg PnL/Trade: ${stats['avg_pnl_per_trade']:.2f}")
 
         logger.info("=" * 60 + "\n")
 

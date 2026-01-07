@@ -84,6 +84,42 @@ cp .env.example .env
 nano .env
 ```
 
+### 3. Choose Your Mode
+
+The bot has **three operating modes**:
+
+#### 🧪 Testing Mode (RECOMMENDED FIRST!)
+- Logs potential trades without executing
+- Tracks actual outcomes to verify profitability
+- Generates reports with real performance data
+- **Perfect for validating strategies before risking capital**
+
+```env
+TESTING_MODE=true
+ENABLE_LIVE_TRADING=false
+```
+
+📖 **See [TESTING_MODE.md](TESTING_MODE.md) for complete guide**
+
+#### 📊 Paper Trading Mode
+- Simulates execution without real funds
+- Practice bot operation
+- No outcome tracking
+
+```env
+TESTING_MODE=false
+ENABLE_LIVE_TRADING=false
+```
+
+#### ⚠️ Live Trading Mode
+- Executes real trades with real funds
+- Only use after thorough testing!
+
+```env
+TESTING_MODE=false
+ENABLE_LIVE_TRADING=true
+```
+
 **Required credentials:**
 - `POLYMARKET_PRIVATE_KEY`: Your Ethereum private key
 - `BINANCE_API_KEY`: For price feeds (latency arbitrage)
@@ -94,14 +130,19 @@ nano .env
 - `MAX_POSITION_SIZE`: Maximum USD per position (default: $1000)
 - `RISK_PER_TRADE`: Risk percentage per trade (default: 2%)
 
-### 3. Run the Bot
+### 4. Run the Bot
 
 ```bash
-# Paper trading mode (default)
+# Testing mode (RECOMMENDED FIRST!)
+# Set TESTING_MODE=true in .env
 python run_bot.py
 
-# Live trading (after testing!)
-# Set ENABLE_LIVE_TRADING=true in .env first
+# Paper trading mode
+# Set both TESTING_MODE=false and ENABLE_LIVE_TRADING=false
+python run_bot.py
+
+# Live trading (after thorough testing!)
+# Set ENABLE_LIVE_TRADING=true in .env
 python run_bot.py
 ```
 

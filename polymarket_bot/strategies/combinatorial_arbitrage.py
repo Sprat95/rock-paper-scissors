@@ -32,9 +32,10 @@ class CombinatorialArbitrageStrategy(BaseStrategy):
     def __init__(
         self,
         polymarket_client: PolymarketClient,
-        config: Dict
+        config: Dict,
+        trade_simulator = None
     ):
-        super().__init__("CombinatorialArbitrage", polymarket_client, config)
+        super().__init__("CombinatorialArbitrage", polymarket_client, config, trade_simulator)
 
         self.min_edge = config.get('min_edge', 0.02)  # 2% edge minimum
         self.max_markets_per_combo = config.get('max_markets_per_combo', 5)

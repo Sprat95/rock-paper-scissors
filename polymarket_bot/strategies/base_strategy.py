@@ -3,11 +3,14 @@ Base strategy class
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, TYPE_CHECKING
 from datetime import datetime
 from ..models.position import Position, StrategyPerformance
 from ..clients.polymarket_client import PolymarketClient
 from ..utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from ..utils.trade_simulator import TradeSimulator
 
 logger = get_logger()
 
@@ -19,7 +22,8 @@ class BaseStrategy(ABC):
         self,
         name: str,
         polymarket_client: PolymarketClient,
-        config: Dict
+        config: Dict,
+        trade_simulator: Optional['TradeSimulator'] = None
     ):
         self.name = name
         self.client = polymarket_client
@@ -28,6 +32,8 @@ class BaseStrategy(ABC):
         self.positions: List[Position] = []
         self.performance = StrategyPerformance(strategy_name=name)
         self.running = False
+        self.trade_simulator = trade_simulator  # For testing mode
+        self.testing_mode = trade_simulator is not None
 
     @abstractmethod
     async def analyze(self) -> Optional[Dict]:

@@ -2,6 +2,14 @@ bot:
   name: "Polymarket Multi-Strategy Bot"
   version: "1.0.0"
 
+# Testing/Simulation Mode Configuration
+testing:
+  enabled: false  # Enable testing mode (overrides live trading)
+  output_dir: "simulation_results"  # Where to save simulation results
+  monitor_interval: 30  # How often to check for market resolutions (seconds)
+  auto_resolve_timeout: 3600  # Auto-resolve trades after this time (seconds)
+  generate_reports: true  # Generate reports periodically
+
 trading:
   max_position_size_usd: 1000
   risk_per_trade: 0.02
