@@ -35,9 +35,10 @@ class LatencyArbitrageStrategy(BaseStrategy):
         self,
         polymarket_client: PolymarketClient,
         config: Dict,
-        price_feed: BinancePriceFeed
+        price_feed: BinancePriceFeed,
+        trade_simulator = None
     ):
-        super().__init__("LatencyArbitrage", polymarket_client, config)
+        super().__init__("LatencyArbitrage", polymarket_client, config, trade_simulator)
 
         self.price_feed = price_feed
         self.min_edge = config.get('min_edge', 0.03)  # 3% edge minimum
@@ -297,7 +298,51 @@ class LatencyArbitrageStrategy(BaseStrategy):
 
             amount = position_size_usd / current_price
 
-            # Execute market order
+            # TESTING MODE: Log trade without executing
+            if self.testing_mode and self.trade_simulator:
+                market_question = opportunity.get('market_question', f"{market_key} market")
+
+                simulated_trade = self.trade_simulator.log_trade(
+                    strategy=self.name,
+                    market_id=opportunity['condition_id'],
+                    token_id=token_id,
+                    side='BUY',
+                    entry_price=current_price,
+                    amount=amount,
+                    market_question=market_question,
+                    outcome=direction,
+                    edge=edge,
+                    confidence=opportunity['momentum']['confidence'],
+                    metadata={
+                        'symbol': opportunity['symbol'],
+                        'momentum_pct': opportunity['momentum']['pct_change']
+                    }
+                )
+
+                # Create a "virtual" position for tracking in testing mode
+                position = Position(
+                    position_id=simulated_trade.trade_id,
+                    market_id=opportunity['condition_id'],
+                    token_id=token_id,
+                    entry_price=current_price,
+                    amount=amount,
+                    side=Side.BUY,
+                    strategy=self.name,
+                    entry_time=datetime.now(),
+                    metadata={
+                        'direction': direction,
+                        'edge': edge,
+                        'symbol': opportunity['symbol'],
+                        'momentum': opportunity['momentum'],
+                        'simulated_trade': simulated_trade
+                    }
+                )
+
+                self.add_position(position)
+                self.opportunities_taken += 1
+                return position
+
+            # LIVE/PAPER TRADING MODE: Execute actual order
             logger.info(
                 f"Executing {direction} order for {market_key}: "
                 f"${position_size_usd} at {current_price:.3f}"

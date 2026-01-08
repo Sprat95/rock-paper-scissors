@@ -56,6 +56,14 @@ class RiskManagementConfig(BaseModel):
     emergency_stop_loss_pct: float = Field(default=0.1)
 
 
+class TestingConfig(BaseModel):
+    enabled: bool = Field(default=False)
+    output_dir: str = Field(default="simulation_results")
+    monitor_interval: int = Field(default=30)
+    auto_resolve_timeout: int = Field(default=3600)
+    generate_reports: bool = Field(default=True)
+
+
 class Config:
     """Main configuration class"""
 
@@ -76,6 +84,7 @@ class Config:
 
         # Parse configurations
         self.trading = TradingConfig(**self.config_data.get('trading', {}))
+        self.testing = TestingConfig(**self.config_data.get('testing', {}))
 
         strategies = self.config_data.get('strategies', {})
         self.latency_arbitrage = LatencyArbitrageConfig(**strategies.get('latency_arbitrage', {}))
@@ -102,7 +111,14 @@ class Config:
         self.coinbase_api_key = os.getenv('COINBASE_API_KEY')
         self.coinbase_api_secret = os.getenv('COINBASE_API_SECRET')
 
+        # Trading modes
+        self.testing_mode = os.getenv('TESTING_MODE', 'false').lower() == 'true'
         self.enable_live_trading = os.getenv('ENABLE_LIVE_TRADING', 'false').lower() == 'true'
+
+        # Override from config if testing enabled in YAML
+        if self.testing.enabled:
+            self.testing_mode = True
+
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
 
     def get_enabled_strategies(self) -> list[tuple[str, StrategyConfig]]:

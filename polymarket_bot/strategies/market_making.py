@@ -32,9 +32,10 @@ class MarketMakingStrategy(BaseStrategy):
     def __init__(
         self,
         polymarket_client: PolymarketClient,
-        config: Dict
+        config: Dict,
+        trade_simulator = None
     ):
-        super().__init__("MarketMaking", polymarket_client, config)
+        super().__init__("MarketMaking", polymarket_client, config, trade_simulator)
 
         self.min_spread = config.get('min_spread', 0.025)  # 2.5% minimum spread
         self.volatility_lookback_hours = config.get('volatility_lookback_hours', [3, 24, 168, 720])
