@@ -417,7 +417,7 @@ def main():
     from strategies.ict_strategy import ICTStrategy, SignalType
 
     # Generate sample data
-    dates = pd.date_range(start="2024-01-01", periods=500, freq="1H")
+    dates = pd.date_range(start="2024-01-01", periods=500, freq="1h")
     np.random.seed(42)
 
     price = 42000

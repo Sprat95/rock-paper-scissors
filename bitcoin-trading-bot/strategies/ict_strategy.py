@@ -590,7 +590,7 @@ def main():
     # Create sample data for testing
     import numpy as np
 
-    dates = pd.date_range(start="2024-01-01", periods=100, freq="1H")
+    dates = pd.date_range(start="2024-01-01", periods=100, freq="1h")
     np.random.seed(42)
 
     # Generate realistic price data
